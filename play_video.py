@@ -31,17 +31,17 @@ while frame_idx < total_frames:
         
     frame = images[frame_idx]
     
-    # Lighten video
+    # Lighten video - some of the data was very dark
     bright_frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     cv2.imshow(WINDOW_NAME, bright_frame)
     
     # Check keyboard inputs
     key = cv2.waitKey(10) & 0xFF
     
-    if key == ord('q'):  # Stop the program entirely
+    if key == ord('q'):  # Stop the program entirely - had to add this, caused program to crash IDE otherwise
         print("Program stopped by user.")
         break
-    elif key == ord(' '):  # Spacebar toggles pause state
+    elif key == ord(' '):  # Spacebar toggles pause state - good for pausing
         paused = not paused
         if paused:
             print("Paused. Press Spacebar again to resume, or Q to quit.")
@@ -53,5 +53,5 @@ while frame_idx < total_frames:
     # Advance to next frame if not paused
     frame_idx += 1
 
-print("Video sequence finished. Window left active for inspection.")
-print("To completely exit the Python script run, click the Terminal and press Ctrl+C.")
+print("Video finished.")
+
