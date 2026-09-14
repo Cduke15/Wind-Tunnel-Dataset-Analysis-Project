@@ -9,6 +9,8 @@ Links to them are here:
 https://pypi.org/project/pyMRAW/
 https://opencv.org/
 
+This program allows us to successfully view the data for our Wind Tunnel Analysis project.
+
 ~~~
 
 **INSTRUCTIONS for our MRAW data reader program to run**
