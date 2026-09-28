@@ -26,6 +26,11 @@ You then make a Python file named Play_video.py (or whatever name you may like).
 
 You put this code in and change the header file to one of cih files, not the MRAW files. NOTE: you must have the MRAW file of the same exact name of the cih for it to read it!
 
-Once that is done, simply run and the program will start. A video pop-up should show up titled 'MRAW Playback' at which you can then press 'Space' to pause/resume and 'q' to quit when you are done viewing the data.
+Once that is done, simply run and the program will start. A video pop-up should show up titled 'MRAW Playback' at which you can then press:
+- 'Space' to pause/resume
+- 'q' to quit when you are done viewing the data.
+- 's' to slow down
+- 'f' to speed up
+- 'r' to rewind by 100 frames 
 
 Overall this program is designed to read and run cih and mraw files - very simple and fast!
