@@ -2,7 +2,7 @@
 
 **Our 2026 senior project repository: Colby Duke and Jocelyn Ruiz, University of Tennessee Martin.**
 
-Hello! We've designed a program that can read cih and mraw data files because we lacked a tool to do so - we use two python libraries: pyMRAW and OpenCV.
+Hello! We've designed a program that can read cih and mraw data files because we lacked a tool to do so - we use two main Python libraries: pyMRAW and OpenCV.
 
 pyMRAW reads the raw data (frame by frame) and OpenCV turns it into a viewable video.
 
@@ -14,7 +14,7 @@ https://opencv.org/
 
 Alongside this, we added encryption and authentication using several methods:
 
-AES-128 with CTR and 16 byte Initlization Vector (IV).
+AES-128 with CTR and 16 byte Initialization Vector (IV).
 
 PBKDF2 (Password-Based Key Derivation Function 2) using SHA-256 with 100,000 iterations. 
 
