@@ -1,5 +1,6 @@
 # Wind-Tunnel-Dataset-Analysis-Project
-Our 2026 senior project repository: Colby Duke and Jocelyn Ruiz, University of Tennessee Martin.
+
+**Our 2026 senior project repository: Colby Duke and Jocelyn Ruiz, University of Tennessee Martin.**
 
 Hello! We've designed a program that can read cih and mraw data files because we lacked a tool to do so - we use two python libraries: pyMRAW and OpenCV.
 
@@ -9,7 +10,7 @@ Links to them are here:
 https://pypi.org/project/pyMRAW/
 https://opencv.org/
 
-~~~
+----------------------------------------------------------------------------------------------------------------------
 
 Alongside this, we added encryption and authentication using several methods:
 
@@ -25,6 +26,8 @@ Do note that we used several hazmat layers as Fernet was giving us trouble so pl
 
 Links to the library is here:
 https://cryptography.io/en/latest/
+
+----------------------------------------------------------------------------------------------------------------------
 
 ~~~
 
@@ -59,5 +62,7 @@ A video pop-up should then show up titled 'MRAW Playvideo' at which you can then
 - 's' to slow down
 - 'f' to speed up
 - 'r' to rewind by 100 frames 
+
+~~~
 
 Overall this program is designed to read, encrypt, authenticate, and run cih and mraw files!
