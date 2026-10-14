@@ -5,9 +5,8 @@ import getpass # Safely hides password typing in terminal
 import numpy as np # works with decryption
 import video_player # The original tool - needed here!
 
-# Cryptography Python hazmat tools - used here for AES-128, SHA-256, and PBKDF2, helps with heavy lifting
+# Cryptography Python tools - used here for AES-128, SHA-256, and PBKDF2, helps with heavy lifting
 # Using this instead of Fernet due to the massive file size of the data
-# Becareful with these - they can be dangerous if used incorrectly!
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -159,9 +158,16 @@ def run_playback_flow(password_input: bytes):
     except Exception as e: 
         print(f"Error reading or decrypting file: {e}") 
         exit()
-
+    #Analyze the video
     # Send our stream object straight into your clean playback engine
-    video_player.play_video(video_stream)
+    events = video_player.analyze_video(video_stream)
+    #Save the detected events
+    video_player.save_interaction_events(video_stream, events)
+    
+    # Play the video
+    video_player.play_video(video_stream, events)
+
+    #close the encrypted video stream 
     video_stream.close()
 
 
