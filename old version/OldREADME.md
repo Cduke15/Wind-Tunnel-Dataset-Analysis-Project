@@ -1,5 +1,7 @@
 **INSTRUCTIONS for our original version of the MRAW data reader program to run - this does not have the auto-shock tracker information within it**
 
+~~~
+
 You MUST have Python installed via the latest Python installer, not just through your IDE.
 You can get the latest Python extension here: https://www.python.org/downloads/
 
@@ -29,3 +31,5 @@ A video pop-up should then show up titled 'MRAW Playvideo' at which you can then
 - 's' to slow down
 - 'f' to speed up
 - 'r' to rewind by 100 frames 
+
+~~~
