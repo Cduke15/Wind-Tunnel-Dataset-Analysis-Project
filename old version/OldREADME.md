@@ -1,3 +1,34 @@
+# Wind-Tunnel-Dataset-Analysis-Project
+
+**Our 2026 senior project repository: Colby Duke and Jocelyn Ruiz, University of Tennessee Martin.**
+
+Hello! We've designed a program that can read cih and mraw data files because we lacked a tool to do so - we use two main Python libraries: pyMRAW and OpenCV.
+
+pyMRAW reads the raw data (frame by frame) and OpenCV turns it into a viewable video.
+
+Links to them are here: 
+https://pypi.org/project/pyMRAW/
+https://opencv.org/
+
+----------------------------------------------------------------------------------------------------------------------
+
+Alongside this, we added encryption and authentication using several methods:
+
+AES-128 with CTR and 16 byte Initialization Vector (IV).
+
+PBKDF2 (Password-Based Key Derivation Function 2) using SHA-256 with 100,000 iterations. 
+
+Salt which generates a random 16-byte hex inside the header file.
+
+HMAC-SHA256 for verification of the password you will choose for the file, at which it verifies or else it denies access.
+
+Do note that we used several hazmat layers as Fernet was giving us trouble so please be careful with these - they can be dangerous if used incorrectly!
+
+Links to the library is here:
+https://cryptography.io/en/latest/
+
+----------------------------------------------------------------------------------------------------------------------
+
 **INSTRUCTIONS for our original version of the MRAW data reader program to run - this does not have the auto-shock tracker information within it**
 
 ~~~
