@@ -1,3 +1,5 @@
+# Important: This is the main.py for the old version WITHOUT the auto-tracker, in case you need to simply view the .cih/.mraw data by itself
+
 import cv2
 import pyMRAW
 
