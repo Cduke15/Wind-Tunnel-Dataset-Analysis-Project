@@ -104,6 +104,30 @@ COLOR_ROI_PEAK = (0, 255, 255)    # yellow - the peak frame of an event
 COLOR_REGION = (255, 200, 0)        # blue-ish - detected interaction
 COLOR_TEXT = (255, 255, 255)
 
+# ------------------------------------------------------------
+# DISPLAY / HUD
+#
+# The video is scaled to fit inside DISPLAY_MAX_W x DISPLAY_MAX_H
+# (aspect ratio kept) and the info box is drawn on the scaled
+# picture, so the box looks the same for any dataset.
+# ------------------------------------------------------------
+
+DISPLAY_MAX_W = 1280
+DISPLAY_MAX_H = 800
+
+HUD_FONT = cv2.FONT_HERSHEY_SIMPLEX
+HUD_FONT_SCALE = 0.55
+HUD_THICKNESS = 1
+HUD_LINE_HEIGHT = 26
+HUD_PAD = 10
+HUD_MARGIN = 10
+HUD_ALPHA = 0.7               # box opacity (1.0 = solid)
+HUD_BG = (25, 25, 25)
+HUD_BORDER = (180, 180, 180)
+# The box is never narrower than this text, so it doesn't jitter
+# as the numbers change.
+HUD_WIDTH_SAMPLE = "Interaction: 100.00%  regions: 99"
+
 # Filled in by analyze_video():
 #   FRAME_SCORES: frame index -> % of the ROI covered by interactions
 #   FRAME_BOXES:  frame index -> list of (x, y, w, h) interaction boxes
@@ -564,6 +588,41 @@ def save_playback_report(playback_events, reached):
 
 
 # ============================================================
+# HUD (INFO BOX)
+# ============================================================
+
+def draw_hud(canvas, lines):
+    """
+    Draw a fixed-size info box in the top-left corner of the final
+    (already scaled) canvas. lines = list of (text, BGR color).
+    """
+    def text_w(t):
+        return cv2.getTextSize(t, HUD_FONT, HUD_FONT_SCALE,
+                               HUD_THICKNESS)[0][0]
+
+    inner_w = max([text_w(HUD_WIDTH_SAMPLE)] + [text_w(t) for t, _ in lines])
+    box_w = inner_w + 2 * HUD_PAD
+    box_h = 2 * HUD_PAD + 12 + (len(lines) - 1) * HUD_LINE_HEIGHT + 4
+
+    x0, y0 = HUD_MARGIN, HUD_MARGIN
+    x1 = min(x0 + box_w, canvas.shape[1] - 1)
+    y1 = min(y0 + box_h, canvas.shape[0] - 1)
+
+    # Semi-transparent dark panel
+    region = canvas[y0:y1, x0:x1]
+    panel = np.full_like(region, HUD_BG)
+    cv2.addWeighted(panel, HUD_ALPHA, region, 1 - HUD_ALPHA, 0, dst=region)
+    cv2.rectangle(canvas, (x0, y0), (x1, y1), HUD_BORDER, 1)
+
+    for i, (text, color) in enumerate(lines):
+        if text:
+            cv2.putText(canvas, text,
+                        (x0 + HUD_PAD, y0 + HUD_PAD + 12 + i * HUD_LINE_HEIGHT),
+                        HUD_FONT, HUD_FONT_SCALE, color, HUD_THICKNESS,
+                        cv2.LINE_AA)
+
+
+# ============================================================
 # VIDEO PLAYBACK
 # ============================================================
 
@@ -584,8 +643,8 @@ def play_video(images, events=None):
     # Playback order numbers of events that were actually displayed
     reached = set()
 
-    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(WINDOW_NAME, 1024, 768)
+    # AUTOSIZE shows the canvas at its real pixel size (no stretching)
+    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
 
     print("\n--- CONTROLS ---")
     print("• Press [SPACEBAR] to Pause / Play")
@@ -606,12 +665,6 @@ def play_video(images, events=None):
             break
 
         frame = images[frame_idx]
-
-        display_frame = cv2.normalize(frame, None, 0, 255,
-                                      cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-
-        if len(display_frame.shape) == 2:
-            display_frame = cv2.cvtColor(display_frame, cv2.COLOR_GRAY2BGR)
 
         # Numbers computed during analysis, so they stay correct
         # while paused or after a rewind.
@@ -640,49 +693,58 @@ def play_video(images, events=None):
             if frame_idx == current_event["peak"]:
                 roi_color = COLOR_ROI_PEAK
 
-        cv2.rectangle(display_frame,
-                      (ROI_X, ROI_Y),
-                      (ROI_X + ROI_WIDTH, ROI_Y + ROI_HEIGHT),
-                      roi_color, roi_thickness)
+        # ----------------------------------------------------
+        # Build the picture
+        # ----------------------------------------------------
+        display_frame = cv2.normalize(frame, None, 0, 255,
+                                      cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+        if len(display_frame.shape) == 2:
+            display_frame = cv2.cvtColor(display_frame, cv2.COLOR_GRAY2BGR)
+
+        # Scale the video itself to a fixed display size (aspect ratio kept)
+        h, w = display_frame.shape[:2]
+        scale = min(DISPLAY_MAX_W / w, DISPLAY_MAX_H / h)
+        canvas = cv2.resize(display_frame,
+                            (int(w * scale), int(h * scale)),
+                            interpolation=cv2.INTER_NEAREST)
+
+        def S(v):  # frame coords -> canvas coords
+            return int(round(v * scale))
+
+        # ROI strip (crisp lines, drawn at display resolution)
+        cv2.rectangle(canvas,
+                      (S(ROI_X), S(ROI_Y)),
+                      (S(ROI_X + ROI_WIDTH), S(ROI_Y + ROI_HEIGHT)),
+                      roi_color, roi_thickness + 1)
 
         # Box around each detected interaction
         for (bx, by, bw, bh) in boxes:
-            cv2.rectangle(display_frame,
-                          (bx - 2, by - 2),
-                          (bx + bw + 2, by + bh + 2),
-                          COLOR_REGION, 1)
+            cv2.rectangle(canvas,
+                          (S(bx - 2), S(by - 2)),
+                          (S(bx + bw + 2), S(by + bh + 2)),
+                          COLOR_REGION, 2)
 
-        # Frame counter
-        cv2.putText(display_frame,
-                    f"Frame: {frame_idx + 1:,} / {total_frames:,}",
-                    (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.35, COLOR_TEXT, 1)
+        # Info box (always 4 lines so its height never changes)
+        event_label = ""
+        if current_event is not None:
+            event_label = (f"IN EVENT {current_event['order']} "
+                           f"({current_event['start'] + 1}-"
+                           f"{current_event['end'] + 1})")
+            if frame_idx == current_event["peak"]:
+                event_label += "  PEAK"
 
-        # Interaction area
-        cv2.putText(display_frame,
-                    f"Interaction: {activity_score:.2f}%  "
-                    f"regions: {len(boxes)}",
-                    (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, COLOR_TEXT, 1)
+        hud_lines = [
+            (f"Frame: {frame_idx + 1:,} / {total_frames:,}", COLOR_TEXT),
+            (f"Interaction: {activity_score:.2f}%  "
+             f"regions: {len(boxes)}", COLOR_TEXT),
+            (f"Event: {started} / {total_events}"
+             if total_events > 0 else "", COLOR_TEXT),
+            (event_label, COLOR_ROI_EVENT),
+        ]
+        draw_hud(canvas, hud_lines)
 
-        # Live event counter
-        if total_events > 0:
-            cv2.putText(display_frame,
-                        f"Event: {started} / {total_events}",
-                        (5, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.35,
-                        COLOR_TEXT, 1)
-
-            if current_event is not None:
-                label = (f"IN EVENT {current_event['order']} "
-                         f"({current_event['start'] + 1}-"
-                         f"{current_event['end'] + 1})")
-
-                if frame_idx == current_event["peak"]:
-                    label += "  PEAK"
-
-                cv2.putText(display_frame, label,
-                            (5, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.35,
-                            COLOR_ROI_EVENT, 1)
-
-        cv2.imshow(WINDOW_NAME, display_frame)
+        cv2.imshow(WINDOW_NAME, canvas)
 
         key = cv2.waitKey(delay) & 0xFF
 
