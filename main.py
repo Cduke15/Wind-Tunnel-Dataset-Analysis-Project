@@ -17,12 +17,32 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Put the exact name of your .cih file here
-HEADER_NAME = "Lash_HollowCyl_M4_20190415_Run22_3D.cih" 
+HEADER_NAME = "Lash_HollowCyl_M4_20190411_Run18_3D.cih" 
 
 # Helps prevent issues with the paths
 HEADER_FILE = os.path.join(SCRIPT_DIR, HEADER_NAME)
 TARGET_CIH = os.path.join(SCRIPT_DIR, HEADER_NAME.replace(".cih", "_secure.cih"))
 TARGET_MRAW = os.path.join(SCRIPT_DIR, HEADER_NAME.replace(".cih", "_secure.mraw"))
+
+# Every dataset gets its OWN sub-folder inside particle_shock_events
+# (event pictures, CSVs, strip settings), named after the dataset, so
+# analyzing a new dataset never overwrites another one.
+RESULTS_DIR = os.path.join(SCRIPT_DIR, "particle_shock_events",
+                           HEADER_NAME.replace(".cih", ""))
+
+# Datasets whose detection strip is FIXED to an exact position [x, y, width, height]
+# instead of being placed automatically. The original dataset keeps its original
+# strip, so its detection is identical to before. Other datasets use the automatic
+# placement on the black block's left face.
+FIXED_ROI_BY_DATASET = {
+    "Lash_HollowCyl_M4_20190411_Run18_3D.cih": [214, 20, 20, 130],
+}
+
+# Frames where YOU saw interactions, per dataset (used for the calibration report).
+# Datasets not listed here simply skip the calibration report.
+KNOWN_FRAMES_BY_DATASET = {
+    "Lash_HollowCyl_M4_20190411_Run18_3D.cih": [552, 801, 807, 2230, 2290, 2477, 2551],
+}
 
 
 # Make a password which goes into the file
@@ -225,6 +245,11 @@ def run_playback_flow(password_input: bytes):
         sys.exit(1)
 
     try:
+        #Per-dataset results folder + detection strip placed on the black block's left face
+        video_player.setup_dataset(video_stream, RESULTS_DIR,
+                                   KNOWN_FRAMES_BY_DATASET.get(HEADER_NAME, []),
+                                   FIXED_ROI_BY_DATASET.get(HEADER_NAME))
+
         #Analyze the video
         # Send our stream object straight into your clean playback engine
         events = video_player.analyze_video(video_stream)

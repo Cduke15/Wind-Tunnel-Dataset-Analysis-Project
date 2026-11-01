@@ -1,6 +1,7 @@
 import cv2
 import os
 import csv
+import json
 import numpy as np
 from bisect import bisect_right
 
@@ -19,14 +20,46 @@ FRAME_HEIGHT = 192
 # The tall, narrow strip along the LEFT face of the black block
 # where the particle-shock interactions appear.
 #
-# Estimated from your screenshots. The bottom stops above the
-# bright floor edge so its glare can't trigger false events.
+# These four numbers are only starting defaults. setup_dataset()
+# replaces them for every dataset by finding the black block and
+# placing the strip against its left face (see AUTOMATIC STRIP
+# PLACEMENT below).
 # ------------------------------------------------------------
 
 ROI_X = 214
 ROI_WIDTH = 20          # reaches x = 234, the black block's edge
 ROI_Y = 20
 ROI_HEIGHT = 130        # reaches y = 150, above the bright floor edge
+
+# ------------------------------------------------------------
+# AUTOMATIC STRIP PLACEMENT
+#
+# The black block is found from the typical (median) picture of the
+# video. The strip's RIGHT edge is put on the block's LEFT edge, so
+# it follows the block in every dataset.
+# ------------------------------------------------------------
+
+# Width of the strip in pixels (same as the original dataset).
+STRIP_WIDTH = 20
+
+# The strip starts this fraction of the frame height below the top
+# (the original: 20 / 192).
+STRIP_TOP_FRAC = 0.10
+
+# The strip stops this fraction of the frame height above where the
+# bright floor edge ends in the picture (the original: about 15 / 192),
+# so floor glare can't trigger false events.
+STRIP_FLOOR_MARGIN_FRAC = 0.08
+
+# Number of frames (spread over the whole video) used to build the
+# typical picture. A median over time removes passing interactions.
+BLOCK_SAMPLE_FRAMES = 9
+
+# The block is looked for in this band of rows (fractions of height).
+BLOCK_BAND = (0.20, 0.40)
+
+# A dark region must be at least this wide (pixels) to count as the block.
+BLOCK_MIN_WIDTH = 6
 
 # ------------------------------------------------------------
 # INTERACTION DETECTOR
@@ -81,17 +114,20 @@ MAX_EVENTS = None
 # CALIBRATION
 #
 # Frame numbers (as shown in the playback window) where YOU saw
-# an interaction. After analysis the program reports whether
-# each one was detected, so you can tune the settings above.
+# an interaction. These belong to ONE dataset, so they are set per
+# dataset by setup_dataset() (from the dataset's strip_settings.json
+# or the list passed in by main.py). After analysis the program
+# reports whether each one was detected.
 # ------------------------------------------------------------
 
-KNOWN_INTERACTION_FRAMES = [552, 801, 807, 2230, 2290, 2477, 2551]
+KNOWN_INTERACTION_FRAMES = []
 
 # A known frame counts as detected if an active frame is within
 # this many frames of it.
 KNOWN_FRAME_TOLERANCE = 3
 
-# Folder for saved results.
+# Folder for saved results. setup_dataset() points this at a
+# separate folder for each dataset.
 OUTPUT_FOLDER = "particle_shock_events"
 
 # Saved event pictures are enlarged by this factor.
@@ -146,6 +182,235 @@ def get_total_frames(images):
         return images.total_frames
     # Normal NumPy array
     return images.shape[0]
+
+
+# ============================================================
+# PER-DATASET SETUP (strip placement + results folder)
+# ============================================================
+
+def _to_bgr8(frame):
+    img = cv2.normalize(frame, None, 0, 255,
+                        cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    return img
+
+
+def auto_detect_strip(images):
+    """
+    Finds the black block and returns the strip placed against its LEFT
+    face: {"roi": [x, y, w, h], "block_edge": x, "floor": row}.
+    Returns None if no clear black block is found.
+    """
+    total = get_total_frames(images)
+    idxs = np.unique(np.linspace(0, total - 1,
+                                 min(BLOCK_SAMPLE_FRAMES, total)).astype(int))
+
+    # Typical picture of the video (median over time hides interactions)
+    stack = np.stack([images[int(i)].astype(np.float32) for i in idxs])
+    bg = np.median(stack, axis=0)
+    if bg.ndim == 3:
+        bg = bg.mean(axis=2)
+
+    fh, fw = bg.shape
+
+    # Brightness of each column, measured in a band of rows where the
+    # block is dark and the wall is bright
+    r0 = int(fh * BLOCK_BAND[0])
+    r1 = max(r0 + 1, int(fh * BLOCK_BAND[1]))
+    profile = np.median(bg[r0:r1, :], axis=0)
+
+    k = max(3, fw // 100)
+    padded = np.pad(profile, k, mode="edge")
+    profile = np.convolve(padded, np.ones(k) / k, mode="same")[k:-k]
+
+    wall = float(np.percentile(profile, 60))
+    dark = float(np.percentile(profile, 2))
+
+    # Is there a clearly dark region at all?
+    if wall <= 0 or (wall - dark) < 0.2 * wall:
+        return None
+
+    threshold = 0.5 * (wall + dark)
+    is_dark = profile < threshold
+
+    # Group dark columns into runs [start, end)
+    runs = []
+    x = 0
+    while x < fw:
+        if is_dark[x]:
+            start = x
+            while x < fw and is_dark[x]:
+                x += 1
+            runs.append((start, x))
+        else:
+            x += 1
+
+    # The block is a wide dark run that does NOT touch the left frame
+    # edge (the frame's own dark border does)
+    min_width = max(BLOCK_MIN_WIDTH, int(0.02 * fw))
+    candidates = [(s, e) for s, e in runs
+                  if s > 1 and (e - s) >= min_width]
+
+    if not candidates:
+        return None
+
+    edge, _ = max(candidates, key=lambda r: r[1] - r[0])
+
+    # Strip: right edge on the block's left edge
+    w = min(STRIP_WIDTH, edge)
+    if w < 3:
+        return None
+    x0 = edge - w
+
+    top = int(round(STRIP_TOP_FRAC * fh))
+
+    # Find where the floor starts: first dark row below the middle of
+    # the frame, measured in the strip's own columns
+    rows = np.mean(bg[:, x0:edge], axis=1)
+    rows = np.convolve(np.pad(rows, 1, mode="edge"),
+                       np.ones(3) / 3, mode="same")[1:-1]
+    half = int(fh * 0.5)
+    ref = float(np.median(rows[:half])) if half > 0 else float(np.median(rows))
+    below = np.where(rows[half:] < 0.5 * ref)[0]
+    floor = half + int(below[0]) if below.size else fh
+
+    margin = max(6, int(round(STRIP_FLOOR_MARGIN_FRAC * fh)))
+    bottom = floor - margin
+
+    if bottom - top < 8:
+        bottom = min(fh, top + max(8, int(0.6 * fh)))
+
+    h = bottom - top
+
+    return {"roi": [int(x0), int(top), int(w), int(h)],
+            "block_edge": int(edge),
+            "floor": int(floor)}
+
+
+def setup_roi(images, settings_path, default_known_frames=None,
+              default_roi=None):
+    """
+    Sets the detection strip (ROI) for THIS dataset.
+
+    The strip is placed automatically against the left face of the black
+    block. The result is saved in settings_path (strip_settings.json in
+    the dataset's results folder).
+
+    The settings file may also contain:
+      "override_roi":  [x, y, w, h]  -> use this strip instead of the
+                                        automatic one (pins it by hand)
+      "known_frames":  [...]         -> frames where you saw interactions,
+                                        used for the calibration report
+    If no block can be found, a window opens so you can drag a box around
+    the strip by hand.
+    """
+    global ROI_X, ROI_Y, ROI_WIDTH, ROI_HEIGHT, KNOWN_INTERACTION_FRAMES
+
+    total = get_total_frames(images)
+    sample = images[total // 2]
+    fh, fw = sample.shape[:2]
+
+    saved = {}
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, "r") as f:
+                saved = json.load(f)
+        except (OSError, ValueError):
+            saved = {}
+
+    if "known_frames" in saved:
+        known = saved["known_frames"]
+    else:
+        known = list(default_known_frames or [])
+
+    # A strip pinned in the settings file wins; otherwise a strip pinned
+    # for this dataset by main.py; otherwise the automatic placement.
+    override = saved.get("override_roi")
+    from_file = bool(override)
+    if not override:
+        override = default_roi
+    source = ""
+
+    if override and len(override) == 4:
+        x, y, w, h = [int(v) for v in override]
+        source = ("override_roi from the settings file" if from_file
+                  else "fixed strip set for this dataset in main.py")
+    else:
+        found = auto_detect_strip(images)
+
+        if found is not None:
+            x, y, w, h = found["roi"]
+            source = (f"automatic (black block's left edge at "
+                      f"x={found['block_edge']}, floor at y={found['floor']})")
+        else:
+            # Fallback: pick by hand
+            scale = min(DISPLAY_MAX_W / fw, DISPLAY_MAX_H / fh)
+            big = cv2.resize(_to_bgr8(sample),
+                             (int(fw * scale), int(fh * scale)),
+                             interpolation=cv2.INTER_NEAREST)
+
+            print("\nCould not find the black block automatically.")
+            print("Drag a box around the area where interactions appear, "
+                  "then press ENTER. Press C to cancel and use a default guess.")
+            sx, sy, sw, sh = cv2.selectROI("Select detection strip", big,
+                                           showCrosshair=False,
+                                           fromCenter=False)
+            cv2.destroyAllWindows()
+
+            if sw < 3 or sh < 3:
+                x, y = int(fw * 0.836), int(fh * 0.10)
+                w, h = max(3, int(fw * 0.078)), int(fh * 0.68)
+                source = "default guess"
+            else:
+                x, y = int(round(sx / scale)), int(round(sy / scale))
+                w, h = int(round(sw / scale)), int(round(sh / scale))
+                source = "picked by hand"
+
+    # Keep the strip inside the frame
+    x = min(max(x, 0), fw - 1)
+    y = min(max(y, 0), fh - 1)
+    w = max(1, min(w, fw - x))
+    h = max(1, min(h, fh - y))
+
+    ROI_X, ROI_Y, ROI_WIDTH, ROI_HEIGHT = x, y, w, h
+    KNOWN_INTERACTION_FRAMES = known
+
+    out = {"frame_size": [fw, fh],
+           "roi": [x, y, w, h],
+           "how": source,
+           "known_frames": known}
+    if from_file:
+        out["override_roi"] = list(override)
+
+    with open(settings_path, "w") as f:
+        json.dump(out, f, indent=2)
+
+    print(f"Frame size: {fw} x {fh}")
+    print(f"Detection strip: x={x}, y={y}, width={w}, height={h}")
+    print(f"Strip placement: {source}")
+
+
+def setup_dataset(images, results_dir, default_known_frames=None,
+                  default_roi=None):
+    """
+    Call once per dataset before analysis. Every file this program writes
+    (event pictures, CSVs, strip settings) goes into results_dir, which is
+    different for each dataset, so datasets never overwrite each other.
+
+    default_roi: optional [x, y, w, h] that pins the strip for this dataset
+    (used to reproduce the original dataset's exact strip).
+    """
+    global OUTPUT_FOLDER
+
+    OUTPUT_FOLDER = results_dir
+    os.makedirs(results_dir, exist_ok=True)
+
+    print(f"Results folder: {results_dir}")
+
+    setup_roi(images,
+              os.path.join(results_dir, "strip_settings.json"),
+              default_known_frames, default_roi)
 
 
 # ============================================================
