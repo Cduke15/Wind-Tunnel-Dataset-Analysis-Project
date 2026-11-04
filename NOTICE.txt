@@ -1,4 +1,4 @@
-UTM Wind Tunnel Data Analysis Program
+Wind Tunnel Dataset Analysis Project
 Copyright 2026 Colby Duke / Jocelyn Ruiz / University of Tennessee Martin
 
 This product includes software developed by Colby Duke and Jocelyn Ruiz 
