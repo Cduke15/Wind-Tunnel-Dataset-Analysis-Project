@@ -2,13 +2,15 @@
 
 **Our 2026 senior project repository: Colby Duke and Jocelyn Ruiz, University of Tennessee Martin.**
 
-Hello! We've designed a program that can read cih and mraw data files because we lacked a tool to do so - we use two main Python libraries: pyMRAW and OpenCV.
+Hello! We've designed an open-source program that can read cih and mraw data files because we lacked a tool to do so - we use two main Python libraries: pyMRAW and OpenCV.
 
 pyMRAW reads the raw data (frame by frame) and OpenCV turns it into a viewable video.
 
 Links to them are here: 
 https://pypi.org/project/pyMRAW/
 https://opencv.org/
+
+Also please be sure to read the Apache 2.0 license and notice - crediting us and the University of Tennessee Martin is required.
 
 ----------------------------------------------------------------------------------------------------------------------
 
