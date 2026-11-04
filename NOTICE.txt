@@ -1,0 +1,13 @@
+UTM Wind Tunnel Data Analysis Program
+Copyright 2026 Colby Duke / Jocelyn Ruiz / University of Tennessee Martin
+
+This product includes software developed by Colby Duke and Jocelyn Ruiz 
+at the University of Tennessee at Martin (UTM).
+
+ATTRIBUTION & LINK REQUIREMENT:
+Pursuant to Section 4(d) of the Apache License 2.0, any person or entity 
+redistributing or modifying this software MUST retain this notice and 
+include a prominent, functional link back to the original GitHub repository 
+https://github.com/Cduke15/Wind-Tunnel-Dataset-Analysis-Project 
+in their documentation, source code, 
+and any user-facing displays.
