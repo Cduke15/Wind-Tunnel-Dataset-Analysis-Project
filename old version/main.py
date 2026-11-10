@@ -34,7 +34,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Put the exact name of your .cih file here
-HEADER_NAME = "Lash_HollowCyl_M4_20190411_Run18_3D.cih" 
+HEADER_NAME = "example.cih" 
 
 # Helps prevent issues with the paths
 HEADER_FILE = os.path.join(SCRIPT_DIR, HEADER_NAME)
