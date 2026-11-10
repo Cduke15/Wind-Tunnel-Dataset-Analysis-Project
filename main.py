@@ -32,7 +32,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Put the exact name of your .cih file here
-HEADER_NAME = "Lash_HollowCyl_M4_20190411_Run18_3D.cih" 
+HEADER_NAME = "example.cih" 
 
 # Helps prevent issues with the paths
 HEADER_FILE = os.path.join(SCRIPT_DIR, HEADER_NAME)
@@ -50,13 +50,13 @@ RESULTS_DIR = os.path.join(SCRIPT_DIR, "particle_shock_events",
 # strip, so its detection is identical to before. Other datasets use the automatic
 # placement on the black block's left face.
 FIXED_ROI_BY_DATASET = {
-    "Lash_HollowCyl_M4_20190411_Run18_3D.cih": [214, 20, 20, 130],
+    "example.cih": [214, 20, 20, 130],
 }
 
 # Frames where YOU saw interactions, per dataset (used for the calibration report).
 # Datasets not listed here simply skip the calibration report.
 KNOWN_FRAMES_BY_DATASET = {
-    "Lash_HollowCyl_M4_20190411_Run18_3D.cih": [552, 801, 807, 2230, 2290, 2477, 2551],
+    "example.cih": [552, 801, 807, 2230, 2290, 2477, 2551],
 }
 
 
