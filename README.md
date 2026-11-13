@@ -71,6 +71,40 @@ A video pop-up should then show up titled 'MRAW Playvideo' at which you can then
 
 ~~~
 ----------------------------------------------------------------------------------------------------------------------
+## Per-dataset setup
+
+The program now supports more than one dataset without them overwriting each other.
+
+Separate results folders. Everything the program writes goes into its own folder named after the dataset, for example particle_shock_events/example/ for example.cih. Analyzing a new dataset never overwrites another one's results.
+
+Automatic strip placement. The detection strip is placed automatically against the LEFT face of the black block:
+
+1. About 9 frames spread across the whole video are combined into a typical (median) picture, which hides passing interactions.
+2. The brightness of each column is measured in a band of rows where the block is dark and the wall is bright, and the wide dark region that does not touch the left frame edge is taken as the block.
+3. The strip's right edge is placed on the block's left edge. It is 20 pixels wide, starts 10% of the frame height below the top, and stops a margin above where the bright floor edge begins, so floor glare can't cause false events.
+
+Fixed strip for a dataset. The original dataset keeps its exact original strip so its detection is identical to before. This is set in main.py:
+
+FIXED_ROI_BY_DATASET = {
+    "example.cih": [214, 20, 20, 130],      # [x, y, width, height]
+}
+
+Datasets not listed there use the automatic placement.
+
+strip_settings.json. The strip that was used is saved in each dataset's results folder as strip_settings.json (frame size, strip position, and how it was chosen). You can edit this file:
+
+"override_roi": [x, y, w, h] pins the strip by hand and wins over everything else.
+"known_frames": [...] sets the known-interaction frames for the calibration check (see below).
+
+Manual fallback. If no black block can be found and nothing is pinned, a window opens so you can drag a box around the area where interactions appear and press ENTER. Press C to cancel and use a default guess. The choice is saved in strip_settings.json.
+
+Known frames per dataset. Frames where you saw interactions are set per dataset in main.py (or in strip_settings.json):
+
+KNOWN_FRAMES_BY_DATASET = {
+    "example.cih": [552, 801, 807, 2230, 2290, 2477, 2551],
+}
+
+Datasets not listed there simply skip the calibration report.
 
 ## Particle-shock Event Detection
 
@@ -111,14 +145,35 @@ All frame numbers shown to you are 1-based (the first frame is frame 1).
 
 ### Settings
 Everything you can tune is at the top of video_player.py:
-- ROI_X, ROI_Y, ROI_WIDTH, ROI_HEIGHT (default: 214, 20, 20, 130) Position and size of the detection strip. Adjust if the red rectangle doesn't sit along the black block.
 - DIFF_SIGMAS (default: 5.0) How far a pixel must differ from the background, in multiples of camera noise. Lower catches fainter interactions but gives more false hits.
 - MIN_REGION_AREA (default: 10) Smallest region, in pixels, that counts.
 - EVENT_GAP (default: 10) Active frames closer together than this merge into one event. Lower it if separate interactions are being merged.
 - MIN_EVENT_FRAMES (default: 3) Events with fewer active frames are discarded.
 - BACKGROUND_RATE (default: 0.005) How fast the background follows the video. Smaller values have a longer memory.
+- BACKGROUND_FREEZE_FACTOR (default: 0.1) How much slower the background updates under a detected region.
+- WARMUP_FRAMES (default: 10) Frames ignored at the start while the background settles.
+- NOISE_SAMPLE_PAIRS (default: 60) Number of frame pairs sampled to measure camera noise.
+- ANALYSIS_STEP (default: 1) Analyze every Nth frame. 1 analyzes every frame.
 - MAX_EVENTS (default: None) Keep only the top N events by area. None keeps all, which keeps the live counter accurate.
-- KNOWN_INTERACTION_FRAMES (default: a list of frame numbers) Frame numbers where you have seen an interaction, used for the check below.
+- KNOWN_FRAME_TOLERANCE (default: 3) A known frame counts as detected if an active frame is within this many frames of it.
+
+Strip placement (used by the automatic placement):
+
+- STRIP_WIDTH (default: 20) Width of the strip in pixels.
+- STRIP_TOP_FRAC (default: 0.10) The strip starts this fraction of the frame height below the top.
+- STRIP_FLOOR_MARGIN_FRAC (default: 0.08) The strip stops this fraction of the frame height above the floor edge.
+- BLOCK_SAMPLE_FRAMES (default: 9) Frames used to build the typical picture.
+- BLOCK_BAND (default: 0.20, 0.40) Rows (as fractions of height) searched for the block.
+- BLOCK_MIN_WIDTH (default: 6) Minimum width in pixels of a dark region to count as the block.
+- ROI_X, ROI_Y, ROI_WIDTH, ROI_HEIGHT are only starting defaults (214, 20, 20, 130). They are replaced for every dataset when the strip is set up. To pin a strip, use FIXED_ROI_BY_DATASET in main.py or override_roi in strip_settings.json.
+
+Display and saving:
+
+- DISPLAY_MAX_W, DISPLAY_MAX_H (default: 1280, 800) The video is scaled to fit inside this size.
+- SAVE_UPSCALE (default: 4) How much saved event pictures are enlarged.
+- HUD_* settings control the look of the info box.
+
+Known frames are set per dataset (KNOWN_FRAMES_BY_DATASET in main.py or known_frames in strip_settings.json), not at the top of video_player.py.
 
 ### Checking and tuning against your own data
 Put frame numbers where you have visually confirmed an interaction into KNOWN_INTERACTION_FRAMES (use the frame number shown in the playback window). After analysis the program prints whether each one was detected, for example:
@@ -131,9 +186,14 @@ If some are missed, lower DIFF_SIGMAS or MIN_REGION_AREA. If there are too many 
 ### Required change in main.py
 Playback needs the events from the analysis. In main.py, the playback call must pass them in:
 
+    video_player.setup_dataset(video_stream, RESULTS_DIR,
+                           KNOWN_FRAMES_BY_DATASET.get(HEADER_NAME, []),
+                           FIXED_ROI_BY_DATASET.get(HEADER_NAME))
+                           
     events = video_player.analyze_video(video_stream)
     video_player.save_interaction_events(video_stream, events)
     video_player.play_video(video_stream, events)
+setup_dataset must be called first, since it creates the dataset's results folder and places the strip. The encrypted stream is closed afterwards even if something goes wrong.
 
 ### Limitations
 - It detects change, not particles. Anything that alters the strip (debris, camera shake, a lighting change) can count as an interaction. The size filter and threshold reduce this but cannot tell what caused a change.
